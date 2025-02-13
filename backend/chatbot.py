@@ -5,27 +5,51 @@ import numpy as np
 import base64
 from fuzzywuzzy import process
 
+def decode_plotly_value(encoded_value):
+    """ Decodes base64-encoded numerical values from Plotly API response. """
+    if isinstance(encoded_value, dict) and "bdata" in encoded_value:
+        return np.frombuffer(base64.b64decode(encoded_value["bdata"]), dtype=encoded_value["dtype"])[0]
+    return encoded_value  # Return as-is if it's not encoded
+    
 # Load NLP model
 nlp = spacy.load("en_core_web_sm")
 
-# Country and indicator mapping for World Bank API
-COUNTRY_LIST = ["India", "China", "USA", "United States", "Germany", "Pakistan", "United Kingdom"]
-INDICATORS = {
-    "GDP": "NY.GDP.PCAP.CD",
-    "Population": "SP.POP.TOTL",
-    "Inflation": "FP.CPI.TOTL.ZG",
-    "Unemployment": "SL.UEM.TOTL.ZS"
+# **Country List with ISO-3 Codes**
+COUNTRY_ISO_MAP = {  
+    "Afghanistan": "AFG", "Albania": "ALB", "Algeria": "DZA", "Andorra": "AND", "Angola": "AGO",
+    "Argentina": "ARG", "Armenia": "ARM", "Australia": "AUS", "Austria": "AUT", "Azerbaijan": "AZE",
+    "Bahamas": "BHS", "Bahrain": "BHR", "Bangladesh": "BGD", "Barbados": "BRB", "Belarus": "BLR",
+    "Belgium": "BEL", "Belize": "BLZ", "Benin": "BEN", "Bhutan": "BTN", "Bolivia": "BOL",
+    "Bosnia and Herzegovina": "BIH", "Botswana": "BWA", "Brazil": "BRA", "Brunei": "BRN", "Bulgaria": "BGR",
+    "Burkina Faso": "BFA", "Burundi": "BDI", "Cambodia": "KHM", "Cameroon": "CMR", "Canada": "CAN",
+    "Chile": "CHL", "China": "CHN", "Colombia": "COL", "Costa Rica": "CRI", "Cuba": "CUB", 
+    "Czech Republic": "CZE", "Denmark": "DNK", "Dominican Republic": "DOM", "Ecuador": "ECU", "Egypt": "EGY",
+    "France": "FRA", "Germany": "DEU", "Ghana": "GHA", "Greece": "GRC", "Guatemala": "GTM",
+    "India": "IND", "Indonesia": "IDN", "Iran": "IRN", "Iraq": "IRQ", "Ireland": "IRL",
+    "Israel": "ISR", "Italy": "ITA", "Japan": "JPN", "Kenya": "KEN", "Malaysia": "MYS",
+    "Mexico": "MEX", "Nepal": "NPL", "Netherlands": "NLD", "New Zealand": "NZL", "Nigeria": "NGA",
+    "Norway": "NOR", "Pakistan": "PAK", "Philippines": "PHL", "Poland": "POL", "Portugal": "PRT",
+    "Qatar": "QAT", "Russia": "RUS", "Saudi Arabia": "SAU", "Singapore": "SGP", "South Africa": "ZAF",
+    "Spain": "ESP", "Sri Lanka": "LKA", "Sweden": "SWE", "Switzerland": "CHE", "Thailand": "THA",
+    "Turkey": "TUR", "Ukraine": "UKR", "United Arab Emirates": "ARE", "United Kingdom": "GBR",
+    "United States": "USA", "Vietnam": "VNM", "Zambia": "ZMB", "Zimbabwe": "ZWE"
 }
 
-def decode_plotly_value(encoded_value):
-    """ Decodes a Plotly `z` value from the API response. """
-    if isinstance(encoded_value, dict) and "bdata" in encoded_value:
-        # Decode base64-encoded data
-        decoded_bytes = base64.b64decode(encoded_value["bdata"])
-        dtype = np.dtype(encoded_value["dtype"])
-        value = np.frombuffer(decoded_bytes, dtype=dtype)[0]
-        return round(value, 2)  # Return rounded numerical value
-    return encoded_value  # If already in readable format
+INDICATORS = {
+    "GDP per capita": "NY.GDP.PCAP.CD",
+    "Total GDP": "NY.GDP.MKTP.CD",
+    "Population": "SP.POP.TOTL",
+    "Inflation": "FP.CPI.TOTL.ZG",
+    "Unemployment": "SL.UEM.TOTL.ZS",
+    "Life Expectancy": "SP.DYN.LE00.IN",
+    "CO2 Emissions": "EN.ATM.CO2E.PC",
+    "Poverty Rate": "SI.POV.DDAY",
+    "Exports": "NE.EXP.GNFS.CD",
+    "Imports": "NE.IMP.GNFS.CD",
+    "Government Debt": "GC.DOD.TOTL.GD.ZS",
+    "Education Expenditure": "SE.XPD.TOTL.GD.ZS",
+    "Health Expenditure": "SH.XPD.CHEX.GD.ZS"
+}
 
 def extract_query_info(user_query):
     """ Extracts country, indicator, and year from user query using NLP and fuzzy matching. """
@@ -35,24 +59,51 @@ def extract_query_info(user_query):
     # Extract year (default: 2022)
     year = next((int(token.text) for token in doc if token.text.isdigit()), 2022)
 
-    # Extract country
-    country, confidence = process.extractOne(user_query, COUNTRY_LIST) if COUNTRY_LIST else ("India", 100)
+    # Common country abbreviations (expanding recognition)
+    ABBREVIATIONS = {
+        "UK": "United Kingdom",
+        "USA": "United States",
+        "UAE": "United Arab Emirates",
+        "South Korea": "Korea, Rep.",  # Matches World Bank naming
+        "North Korea": "Korea, Dem. People’s Rep."
+    }
 
-    # Extract indicator
-    indicator_key, confidence = process.extractOne(user_query, INDICATORS.keys()) if INDICATORS else ("GDP", 100)
-    indicator_code = INDICATORS.get(indicator_key, "NY.GDP.PCAP.CD")  # Default to GDP
+    # Extract country with fuzzy matching (lower confidence threshold)
+    country_match = process.extractOne(user_query, list(COUNTRY_ISO_MAP.keys()), score_cutoff=60)
 
-    return indicator_code, country, year
+    if country_match:
+        country_name = country_match[0]
+    else:
+        # Try matching against abbreviations
+        for abbr, full_name in ABBREVIATIONS.items():
+            if abbr.lower() in user_query.lower():
+                country_name = full_name
+                break
+        else:
+            country_name = "Unknown"
+
+    country_code = COUNTRY_ISO_MAP.get(country_name, "Unknown")
+
+    # Extract indicator with fuzzy matching
+    indicator_match = process.extractOne(user_query, INDICATORS.keys(), score_cutoff=60)
+    indicator_code = INDICATORS.get(indicator_match[0] if indicator_match else "Unknown", "Unknown")
+
+    return indicator_code, country_name, country_code, year
 
 def ask_map_bot(user_query):
     """ Converts user input into structured JSON and sends API request. """
 
-    indicator, country, year = extract_query_info(user_query)
+    # Extract information from query
+    indicator, country_name, country_code, year = extract_query_info(user_query)
+
+    if country_code == "Unknown" or indicator == "Unknown":
+        print("\nSorry, I couldn't understand your query. Try rephrasing it.")
+        return
 
     # Prepare API request
     request_data = {
         "indicator": indicator,
-        "country": country,
+        "country": country_code,  # Use country code instead of name
         "year": year
     }
 
@@ -64,7 +115,6 @@ def ask_map_bot(user_query):
 
         if "data" in data and len(data["data"]) > 0:
             country_data = data["data"][0]
-            country_name = country_data.get("locations", ["Unknown"])[0]
             value = decode_plotly_value(country_data.get("z", "Unknown"))  # Decode value
 
             # Print formatted response
@@ -76,6 +126,14 @@ def ask_map_bot(user_query):
 
 # Chatbot loop
 while True:
+    user_input = input("\nAsk me anything (type 'exit' to quit): ").strip()
+    
+    if user_input.lower() == "exit":
+        print("Goodbye!")
+        break
+
+    ask_map_bot(user_input)
+
     user_input = input("\nAsk me anything (type 'exit' to quit): ").strip()
     
     if user_input.lower() == "exit":

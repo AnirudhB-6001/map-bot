@@ -1,0 +1,9 @@
+# Ignore node_modules and virtual environments
+frontend/node_modules/
+backend/venv/
+
+# Ignore environment variables
+.env
+
+# Ignore build files
+frontend/dist/

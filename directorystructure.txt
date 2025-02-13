@@ -1,0 +1,9 @@
+map-bot/
+│── backend/              # Flask + Plotly-based API
+│   │── data/             # Stores dataset files (CSV, JSON)
+│   │── scripts/          # Python scripts for data processing
+│   │── api.py            # Flask API for chatbot
+│── frontend/             # React/JavaScript-based UI
+│   │── src/              # React components
+│   │── public/           # Static assets
+│── README.md             # Project overview

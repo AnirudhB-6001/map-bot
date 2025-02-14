@@ -1,0 +1,14 @@
+{
+    "GDP per capita": "NY.GDP.PCAP.CD",
+    "Total GDP": "NY.GDP.MKTP.CD",
+    "Population": "SP.POP.TOTL",
+    "Inflation": "FP.CPI.TOTL.ZG",
+    "Unemployment": "SL.UEM.TOTL.ZS",
+    "Life Expectancy": "SP.DYN.LE00.IN",
+    "Poverty Rate": "SI.POV.DDAY",
+    "Exports": "NE.EXP.GNFS.CD",
+    "Imports": "NE.IMP.GNFS.CD",
+    "Government Debt": "GC.DOD.TOTL.GD.ZS",
+    "Education Expenditure": "SE.XPD.TOTL.GD.ZS",
+    "Health Expenditure": "SH.XPD.CHEX.GD.ZS"
+}

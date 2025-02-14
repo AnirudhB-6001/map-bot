@@ -10,7 +10,7 @@ def decode_plotly_value(encoded_value):
     if isinstance(encoded_value, dict) and "bdata" in encoded_value:
         return np.frombuffer(base64.b64decode(encoded_value["bdata"]), dtype=encoded_value["dtype"])[0]
     return encoded_value  # Return as-is if it's not encoded
-    
+
 # Load NLP model
 nlp = spacy.load("en_core_web_sm")
 
@@ -64,17 +64,16 @@ def extract_query_info(user_query):
         "UK": "United Kingdom",
         "USA": "United States",
         "UAE": "United Arab Emirates",
-        "South Korea": "Korea, Rep.",  # Matches World Bank naming
+        "South Korea": "Korea, Rep.",
         "North Korea": "Korea, Dem. People’s Rep."
     }
 
-    # Extract country with fuzzy matching (lower confidence threshold)
+    # Extract country with fuzzy matching
     country_match = process.extractOne(user_query, list(COUNTRY_ISO_MAP.keys()), score_cutoff=60)
 
     if country_match:
         country_name = country_match[0]
     else:
-        # Try matching against abbreviations
         for abbr, full_name in ABBREVIATIONS.items():
             if abbr.lower() in user_query.lower():
                 country_name = full_name
@@ -103,7 +102,7 @@ def ask_map_bot(user_query):
     # Prepare API request
     request_data = {
         "indicator": indicator,
-        "country": country_code,  # Use country code instead of name
+        "country": country_code,
         "year": year
     }
 
@@ -113,25 +112,19 @@ def ask_map_bot(user_query):
     if response.status_code == 200:
         data = response.json()
 
-        # ✅ Extract the value correctly from API response
         if "value" in data and data["value"] is not None:
             value = data["value"]
             print(f"\n✅ {indicator} of {country_name} in {year}: {value}")
         else:
-            print("\n❌ ERROR: No data available for the given query.")
+            print("\n❌ ERROR: No data available.")
+            print(f"DEBUG: API Response: {data}")  # Print full response for debugging
     else:
         print("\n❌ ERROR: Failed to fetch map data.")
+        print(f"DEBUG: API Response Code: {response.status_code}")
+        print(f"DEBUG: API URL: {api_url}")
 
 # Chatbot loop
 while True:
-    user_input = input("\nAsk me anything (type 'exit' to quit): ").strip()
-    
-    if user_input.lower() == "exit":
-        print("Goodbye!")
-        break
-
-    ask_map_bot(user_input)
-
     user_input = input("\nAsk me anything (type 'exit' to quit): ").strip()
     
     if user_input.lower() == "exit":

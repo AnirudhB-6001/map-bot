@@ -1,39 +1,25 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import requests
+from flask import Flask, request, jsonify
 import plotly.express as px
 import pandas as pd
 
 app = Flask(__name__)
-CORS(app)
-
-@app.route("/")
-def home():
-    return jsonify({"message": "Map Bot API is running with real-time data!"})
 
 @app.route("/generate_map", methods=["POST"])
 def generate_map():
-    """
-    Receives a JSON request with 'indicator', 'country', and 'year'.
-    Fetches real-time data from the World Bank API and generates a choropleth map.
-    """
-
     try:
         # Parse JSON request
         data = request.json
-        indicator = data.get("indicator", "NY.GDP.PCAP.CD")  # Default: GDP per capita
-        country = data.get("country", "IND")  # Default: India (ISO Alpha-3 code)
+        indicator = data.get("indicator")
+        country = data.get("country")  # Expecting ISO-3 code from chatbot
         year = data.get("year", 2022)
 
-        # Convert country names to World Bank ISO-3 codes (for now, assume input is ISO-3)
-        country_codes = {
-            "India": "IND", "China": "CHN", "USA": "USA", "Germany": "DEU",
-            "Pakistan": "PAK", "United Kingdom": "GBR"
-        }
-        country_code = country_codes.get(country, "IND")  # Default: India
+        if not indicator or not country:
+            return jsonify({"error": "Missing required parameters"}), 400
 
         # **Fetch data from World Bank API**
-        world_bank_url = f"http://api.worldbank.org/v2/country/{country_code}/indicator/{indicator}?date={year}&format=json"
+        world_bank_url = f"http://api.worldbank.org/v2/country/{country}/indicator/{indicator}?date={year}&format=json"
+        print(f"DEBUG: Fetching data from {world_bank_url}")  # ✅ Debugging
 
         response = requests.get(world_bank_url)
 
@@ -41,26 +27,33 @@ def generate_map():
             return jsonify({"error": "Failed to fetch data from World Bank"}), 500
 
         world_bank_data = response.json()
+        print(f"DEBUG: Raw API Response: {world_bank_data}")  # ✅ Print entire response
 
-        # Extract relevant data
-        if len(world_bank_data) < 2 or "value" not in world_bank_data[1][0]:
-            return jsonify({"error": "No data available for this query"}), 404
+        # **Check if response contains valid data**
+        if not isinstance(world_bank_data, list) or len(world_bank_data) < 2 or not world_bank_data[1]:
+            return jsonify({"error": "No valid data returned from World Bank API"}), 500
 
-        value = world_bank_data[1][0]["value"]
+        # **Extract value safely**
+        records = world_bank_data[1]
+        value = next((entry["value"] for entry in records if "value" in entry and entry["value"] is not None), "No Data")
+        
+        # **Handle "No Data" case**
+        if value == "No Data":
+            return jsonify({"error": f"No available data for {indicator} in {year}"}), 404
 
-        # Create DataFrame for visualization
-        df = pd.DataFrame({
-            "Country": [country],
-            "Indicator": [indicator],
-            "Value": [value],
-            "Year": [year]
-        })
-
-        # Generate Choropleth Map
-        fig = px.choropleth(df, locations="Country", locationmode="country names",
+        # **Generate Choropleth Map**
+        df = pd.DataFrame([{"Country": country, "Value": value}])
+        fig = px.choropleth(df, locations="Country", locationmode="ISO-3",
                             color="Value", title=f"{indicator} in {year}")
 
-        return fig.to_json()
+        # ✅ Return both raw value & choropleth JSON
+        return jsonify({
+            "country": country,
+            "indicator": indicator,
+            "year": year,
+            "value": value,
+            "map": fig.to_json()
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

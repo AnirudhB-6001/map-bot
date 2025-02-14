@@ -97,7 +97,7 @@ def ask_map_bot(user_query):
     indicator, country_name, country_code, year = extract_query_info(user_query)
 
     if country_code == "Unknown" or indicator == "Unknown":
-        print("\nSorry, I couldn't understand your query. Try rephrasing it.")
+        print("\n❌ ERROR: Could not understand your query. Try rephrasing it.")
         return
 
     # Prepare API request
@@ -113,16 +113,14 @@ def ask_map_bot(user_query):
     if response.status_code == 200:
         data = response.json()
 
-        if "data" in data and len(data["data"]) > 0:
-            country_data = data["data"][0]
-            value = decode_plotly_value(country_data.get("z", "Unknown"))  # Decode value
-
-            # Print formatted response
-            print(f"\n{indicator} of {country_name} in {year}: {value}")
+        # ✅ Extract the value correctly from API response
+        if "value" in data and data["value"] is not None:
+            value = data["value"]
+            print(f"\n✅ {indicator} of {country_name} in {year}: {value}")
         else:
-            print("\nNo data available for the given query.")
+            print("\n❌ ERROR: No data available for the given query.")
     else:
-        print("\nError: Failed to fetch map data")
+        print("\n❌ ERROR: Failed to fetch map data.")
 
 # Chatbot loop
 while True:
